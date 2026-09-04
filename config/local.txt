@@ -1,0 +1,11 @@
+# CS425 MP1 -- local development: N processes on one host.
+#   ./bin/dgrep --config config/local.txt -- <grep args>
+#
+#   <id>  <host>  <port>
+#
+1   127.0.0.1   9401
+2   127.0.0.1   9402
+3   127.0.0.1   9403
+4   127.0.0.1   9404
+5   127.0.0.1   9405
+6   127.0.0.1   9406

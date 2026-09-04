@@ -22,7 +22,7 @@ Demo Mon Sep 14.
       no form means no VMs means no MP)
 - [ ] Course GitHub repo created, both partners have push access
 - [ ] PAT or SSH key working, so you can clone on a VM
-- [ ] VMs assigned — hostnames filled into `config/machines.txt`
+- [x] VMs assigned — group 91, `fa26-cs425-9101..9110`, in `config/machines.txt`
 - [ ] `make && make test` runs on your laptop *and* on one VM
 
 ---

@@ -10,7 +10,7 @@ set -euo pipefail
 
 GID=${1:?usage: gen_machines.sh <gid> [n_vms] [port]   e.g. gen_machines.sh 03}
 N=${2:-10}
-PORT=${3:-9425}
+PORT=${3:-4425}
 
 echo "# CS425 MP1 cluster -- group $GID"
 echo "# <id> <host> <port>"

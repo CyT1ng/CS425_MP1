@@ -1,6 +1,6 @@
 // mp1d -- the log server. One instance runs on every VM.
 //
-//   mp1d --id <machine-id> [--port 9425] [--log-dir .]
+//   mp1d --id <machine-id> [--port 4425] [--log-dir .]
 //
 // Accepts a connection, reads one Request, greps this machine's own
 // machine.<id>.log, streams the result back, closes. One connection per query.

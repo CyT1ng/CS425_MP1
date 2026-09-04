@@ -35,13 +35,18 @@ status is nonzero if anything fails.
 
 ## Run MP1
 
-**1. Configure the cluster.** Edit `config/machines.txt` — one `id host port`
-line per machine. Ship the same file to every machine so any of them can query.
+**1. Configure the cluster.** `config/machines.txt` is the VM cluster — one
+`id host port` line per machine; regenerate it with
+`./scripts/gen_machines.sh <gid> 10 <port> > config/machines.txt`. Ship the same
+file to every machine so any of them can query. `config/local.txt` is the
+several-processes-on-one-host config for development; pass it with
+`--config`. Keep them in separate files — duplicate ids in one file are
+rejected at startup.
 
 **2. Start a daemon on every machine.**
 
     ./bin/mp1gen --id <i> --seed 42 --lines 300000    # generate machine.<i>.log
-    ./bin/mp1d   --id <i> --port 9425                 # serve it
+    ./bin/mp1d   --id <i> --port 4425                 # serve it
 
 On the VM cluster, `./scripts/deploy.sh` does the clone, build, log generation,
 and daemon start across every machine in the config at once:
@@ -87,7 +92,7 @@ plotted together with SD as error bars.
     src/           implementation + the three binaries' main()
     tests/         test framework, cluster harness, local + distributed tests
     scripts/       cluster startup, VM deploy, test runner, measurements
-    config/        machines.txt (cluster membership; hard state, per the spec)
+    config/        machines.txt (VM cluster), local.txt (one-host dev)
     report/        plotting script and measurement data
 
 ## Design summary
