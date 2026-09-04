@@ -23,57 +23,53 @@ struct Machine {
 
 // Parse `path` into `out`, replacing whatever `out` held.
 //
-// Returns true on success. On the first problem found, returns false, writes a
-// message to `err` (when non-null), and leaves `out` EMPTY rather than half
-// populated -- a caller that ignores the return value must not end up quietly
-// querying a subset of the cluster.
+// Returns true on success. On the first bad line it returns false, writes a
+// message to `err` (when non-null), and leaves `out` EMPTY -- never partly
+// filled, so a caller that ignores the return value cannot end up quietly
+// querying a subset of the cluster. There is no partial success: one bad line
+// means zero machines, not the nine that parsed.
 //
-// Tolerated: blank lines, leading and trailing whitespace, and '#' comment
-// lines. Skip exactly what deploy.sh skips with `grep -vE '^\s*(#|$)'`,
-// leading whitespace before the '#' included. If the shell and the daemon
-// disagree about which lines are live, the cluster half-starts.
+// Ignored: blank lines, and '#' comments with any leading whitespace. This has
+// to match what deploy.sh skips with `grep -vE '^\s*(#|$)'` -- if the shell and
+// the daemon disagree about which lines are live, the cluster half-starts.
 //
 // Rejected, each reported against its line number:
-//   - anything other than three whitespace-separated fields. Trailing '#'
-//     comments count as malformed; they break deploy.sh's `read` too.
-//   - id <= 0, or an id already claimed by an earlier line.
-//   - a port outside 1..65535. Range-check before narrowing: stoi("70000")
-//     succeeds and truncates to 4464, binding a port nobody will call.
-//   - a non-numeric id or port. stoi THROWS on those -- let it escape and a
-//     typo kills the daemon instead of producing the message below.
-//   - a file that parses cleanly but yields zero machines, which would leave
-//     dgrep fanning out to nobody and exiting 0: indistinguishable from a
-//     pattern that legitimately matched nothing.
+//   - a line that is not three whitespace-separated fields
+//   - a non-numeric id or port
+//   - id <= 0, or an id an earlier line already claimed
+//   - a port outside 1..65535. Range-check BEFORE narrowing to uint16_t, or
+//     70000 silently becomes 4464 and the daemon binds a port nobody calls.
+//   - a file that parses cleanly but defines no machines, which would leave
+//     dgrep fanning out to nobody and exiting 0 -- indistinguishable from a
+//     pattern that legitimately had no matches
 //
-// Hostnames are NOT resolved here. DNS belongs at connect time, where
-// MachineStatus::kUnreachable already accounts for it; resolving during parse
-// turns a config typo into a timeout and makes startup depend on the network.
+// Hostnames are NOT resolved here, so a machine in the list is well-formed, not
+// known to be up. DNS belongs at connect time, where MachineStatus::kUnreachable
+// already covers it; resolving during the parse would turn a config typo into a
+// timeout and make startup depend on the network.
 //
-// Report failures loudly and specifically -- a typo here otherwise surfaces as
-// a mysterious "machine unreachable" at demo time, which is a bad way to find
-// out. Name the file, the line, and the offending value:
+// Errors name the file, the line, and the offending value:
 //
-//   config/machines.txt:7: duplicate id 3 (first seen on line 5)
+//   config/machines.txt:7: duplicate id 3
 //
-// Both callers default to a RELATIVE path (deploy.sh:14, dgrep --config), so a
-// missing file usually means the wrong working directory. Say that outright.
-//
-// TODO: implement; currently a stub that always fails.
+// A typo here otherwise surfaces as a mysterious "machine unreachable" at demo
+// time, which is a bad way to find out. Both callers default to a RELATIVE path
+// (dgrep --config, deploy.sh:14), so a missing file usually means nothing worse
+// than the wrong working directory -- say so plainly.
 bool LoadMachines(const std::string& path, std::vector<Machine>& out,
                   std::string* err);
 
-// Returns "machine.<id>.log" -- the log naming convention the spec fixes.
+// Returns "machine.<id>.log", the log naming convention the spec fixes.
 //
-// Total: every int maps to a name, so there is no failure to report. Callers
-// join it onto a directory themselves (server_main.cpp does
-// `log_dir + "/" + LogFileName(id)`); this deliberately returns a bare
-// filename, not a path.
+// Always succeeds; every id maps to a name. Returns a bare filename rather than
+// a path -- callers join it onto a directory themselves, as server_main.cpp
+// does with `log_dir + "/" + LogFileName(id)`.
 //
-// It exists as a shared function rather than a sprintf at each use site
+// It is a shared function rather than a format string repeated at each use site
 // because three binaries have to agree on it: mp1d greps the file, mp1gen
-// writes it, and the tests assert on it. Three copies would eventually drift,
-// and the symptom -- a daemon serving a file the generator never created --
-// looks like a dead machine rather than a naming bug.
+// writes it, and the tests assert on it. Separate copies would drift, and the
+// symptom -- a daemon serving a file the generator never created -- reads as a
+// dead machine rather than a naming bug.
 std::string LogFileName(int id);
 
 }  // namespace mp1
