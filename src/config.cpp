@@ -55,12 +55,16 @@ bool ParseLine(const std::string& line, Machine* out, std::string* why) {
 
 }  // namespace
 
-// The contract -- what is tolerated, what is rejected, and the shape of the
-// error text -- lives above the declaration in config.hpp.
+// Reads `path` into `out`; the full contract is in config.hpp.
 //
-// Machines are collected in a local vector and handed to `out` only once the
-// whole file has parsed, so a caller that ignores our return value can never
-// see a half-built cluster.
+// The per-line work lives in the helpers above -- IsBlankOrComment decides what
+// to skip, ParseLine validates one line, HasId catches a repeat. What is left
+// here is the file itself: open it, number the lines so errors can point at
+// one, and commit all-or-nothing at the end.
+//
+// Machines accumulate in a local vector and reach `out` only once the whole
+// file has parsed, which is what keeps the "empty on failure" promise without a
+// clear() on every error path.
 bool LoadMachines(const std::string& path, std::vector<Machine>& out,
                   std::string* err) {
     out.clear();
@@ -102,8 +106,10 @@ bool LoadMachines(const std::string& path, std::vector<Machine>& out,
     return true;
 }
 
-// Kept trivial on purpose -- see config.hpp for why this is a function at all
-// rather than a format string repeated in mp1d, mp1gen, and the tests.
+// Returns "machine.<id>.log".
+//
+// Trivial on purpose. The value is not the string concatenation, it is that
+// mp1d, mp1gen and the tests all read the naming rule from one place.
 std::string LogFileName(int id) {
     return "machine." + std::to_string(id) + ".log";
 }
