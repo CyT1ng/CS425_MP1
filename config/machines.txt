@@ -1,0 +1,26 @@
+# Cluster membership -- "hard state", which the spec explicitly permits.
+#
+#   <id>  <host>  <port>
+#
+# <id> is the VM number i, so this machine's log is machine.<id>.log.
+# Every machine runs mp1d and ships this same file, so any machine can query.
+#
+# --- CS VM Cluster (fill in your real hostnames once VMs are assigned) -------
+# 1   fa26-cs425-XXXX-01.cs.illinois.edu   9425
+# 2   fa26-cs425-XXXX-02.cs.illinois.edu   9425
+# 3   fa26-cs425-XXXX-03.cs.illinois.edu   9425
+# 4   fa26-cs425-XXXX-04.cs.illinois.edu   9425
+# 5   fa26-cs425-XXXX-05.cs.illinois.edu   9425
+# 6   fa26-cs425-XXXX-06.cs.illinois.edu   9425
+# 7   fa26-cs425-XXXX-07.cs.illinois.edu   9425
+# 8   fa26-cs425-XXXX-08.cs.illinois.edu   9425
+# 9   fa26-cs425-XXXX-09.cs.illinois.edu   9425
+# 10  fa26-cs425-XXXX-10.cs.illinois.edu   9425
+
+# --- local development: N processes on one host ------------------------------
+1   127.0.0.1   9401
+2   127.0.0.1   9402
+3   127.0.0.1   9403
+4   127.0.0.1   9404
+5   127.0.0.1   9405
+6   127.0.0.1   9406
