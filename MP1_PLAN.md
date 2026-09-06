@@ -11,8 +11,9 @@ Companion to `MP1_REQUIREMENTS.md`. Working document: tick boxes as you go.
 > function body is a `TODO` on purpose. Write them yourself, and make sure both
 > partners can explain any line of the result cold.
 
-**9 days left.** Code + report due Sun Sep 13, 11:59 PM (hard, no extensions).
-Demo Mon Sep 14.
+**Code + report due Sun Sep 13, 11:59 PM** (hard, no extensions). Demo Mon Sep 14.
+
+For the order to build it in, with a check at each step, see `MP1_BUILD_GUIDE.md`.
 
 ---
 
@@ -58,34 +59,62 @@ scatter/gather fan-out RPC. Say exactly that if asked.
 Each phase ends in something you can run. Don't start a phase before the one
 above it is green.
 
-### Phase A — plumbing (`protocol`, `net`, `config`)
-- [ ] `PutU16/32/64` + `GetU*` helpers, tested in isolation
-- [ ] `EncodeRequest` / `DecodeRequest`, round-trip tested
-- [ ] `DecodeRequest` rejects bad magic, truncation, oversized lengths
-- [ ] `ReadFull` / `WriteFull` — loop on short I/O, retry `EINTR`, honour deadline
-- [ ] `ConnectWithDeadline` — non-blocking connect + `poll` + `SO_ERROR`
-- [ ] `LoadMachines`, `LogFileName`
-- [ ] `make test` green for everything in `test_unit_local.cpp` above `RunGrep`
+### Phase A — plumbing (`net`, `protocol`, `config`)
+
+Two staged simplifications, both deliberate and both written down where the
+code is: the wire format is **text** (`include/mp1/protocol.hpp`), and the
+hardening it defers is Phase D. Say "we staged it" at the demo, not "we forgot".
+
+- [x] `LoadMachines`, `LogFileName`
+- [ ] `Conn::ReadLine` / `ReadExactly` / `WriteAll`. The internal buffer is the
+      whole trick: one `read()` can stop mid-line or return two lines at once,
+      so leftover bytes have to survive to the next call
+- [ ] `Listen`, `Accept`, `Connect`, `IgnoreSigpipe`. `Connect` needs
+      non-blocking + `poll(POLLOUT)` + `SO_ERROR` — Linux ignores socket
+      timeouts on `connect()`, so `SO_RCVTIMEO` will not save you here
+- [ ] `SendRequest` / `RecvRequest`, `SendData` / `SendEnd` / `RecvFrame`
+- [ ] `make test` green for the `Conn_*` and `Protocol_*` tests
 
 ### Phase B — one machine end to end
-- [ ] `RunGrep`: `pipe` + `fork` + `execvp`, drain **both** stdout and stderr
+- [ ] `RunGrep`: `pipe` + `fork` + `execvp`, one pipe for stdout. Close the
+      write end in the parent **first**, or the pipe never reports EOF because
+      you are still holding it open yourself. grep's stderr is inherited for
+      now; the second pipe arrives with the error frame in Phase D
 - [ ] Count lines while streaming — never run grep twice
 - [ ] `mp1d` accept loop, thread per connection, survives a malformed request
 - [ ] `dgrep` against a single local daemon returns correct output
 - [ ] `mp1gen` deterministic, and its expected counts match a real local grep
 
 ### Phase C — the fan-out
-- [ ] One thread per machine, joined; `wall_latency` = max, not sum
-- [ ] stdout guarded by a mutex, whole chunks at a time
-- [ ] Per-machine summary table with filename + line count
-- [ ] `./scripts/start_cluster.sh 6` and query it from "any" machine
+- [ ] `QueryOne`: connect, send, drain frames, fill a `MachineResult`. It must
+      never throw — a dead machine is a normal return value, not an error
+- [ ] `RunQuery`: one `std::async(std::launch::async, ...)` per machine, collect
+      every future. **`launch::async` is not optional** — without it the task
+      may be deferred to `get()`, which silently makes the fan-out sequential
+      and quietly ruins the latency numbers
+- [ ] `wall_latency` = max, not sum
+- [ ] `PrintSummary`: per-machine table with filename + line count
+- [ ] `./scripts/start_cluster.sh 6`, then query it with
+      `--config config/local.txt` from "any" machine
 
-### Phase D — fault tolerance
+### Phase D — protocol hardening, then fault tolerance
+
+Hardening first: `UNREACHABLE` and `PARTIAL` are only trustworthy once a peer
+cannot crash you or lie to you about a length.
+
+- [ ] A `MP1 <version>\n` greeting line. Catches pointing `dgrep` at the wrong
+      port — a stale daemon, another service — instead of parsing someone
+      else's bytes as grep output. The port already moved 9425 → 4425 once
+- [ ] Length caps on the request and on each frame, checked *before* any
+      allocation. A length is a number the **peer** chose
+- [ ] A second pipe for grep's stderr and an error frame to carry the text, so
+      `kGrepError` reports *why*. Two pipes means `poll()`ing both: drain only
+      one while grep fills the other and it deadlocks
 - [ ] Dead machine → `UNREACHABLE`, reported, not silently dropped
 - [ ] Dead machine does **not** delay live ones (test against a blackhole IP,
       not localhost — localhost gives an instant refusal and proves nothing)
-- [ ] Killed mid-stream → `PARTIAL`, caught by comparing the trailer's line
-      count against lines actually received
+- [ ] Killed mid-stream → `PARTIAL`, caught by comparing the END line's count
+      against the lines actually received
 - [ ] `SIGPIPE` ignored, or a disconnecting client kills your daemon
 
 ### Phase E — the test suite
@@ -161,6 +190,9 @@ words mean nothing to a grader on their own.
 - Omitting a dead machine from the output instead of marking it failed — it
   looks identical to a machine with zero matches.
 - Assuming one `read()` returns a whole message.
+- Demoing before Phase D. Without the length caps a malformed frame can take a
+  daemon down, and "do not let a MALFORMED request kill the daemon" is a stated
+  requirement in `src/server_main.cpp`.
 - Forgetting to close pipe write-ends in the parent, so you never see EOF.
 - `system()` or `sh -c` instead of `execvp` — breaks `-E` patterns depending on
   quoting, and hands a remote caller a shell.

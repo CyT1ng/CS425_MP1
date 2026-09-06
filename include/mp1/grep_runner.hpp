@@ -1,32 +1,31 @@
 #pragma once
 //
-// Runs the real system grep on the local log file and streams its stdout to a
-// sink. The spec forbids reimplementing grep, so this is deliberately a thin
-// wrapper around the actual executable -- that is what buys you all of grep's
-// options, including arbitrary -E regexes, for free.
+// Runs the real system grep on this machine's log file.
 //
-// Design decisions to be able to defend at the demo:
+// The spec forbids reimplementing grep, and that is a gift: shelling out to the
+// actual executable gives you every one of grep's options, including arbitrary
+// -E regexes, for free and correctly.
 //
-//  * exec grep DIRECTLY with an argv array (fork + execvp). Do NOT go through
-//    system() or "sh -c". A shell would re-interpret the pattern, so
-//    -E '(foo|bar)+' would break in ways that depend on the client's quoting,
-//    and it would hand a remote caller a shell.
+// Three decisions to be able to defend at the demo:
 //
-//  * The file argument is appended HERE, by the server, from its own config.
-//    It never comes off the wire.
+//  * fork + execvp with an argv ARRAY. Never system() or "sh -c". A shell would
+//    re-interpret the pattern, so -E '(foo|bar)+' would break depending on how
+//    the client happened to quote it -- and it would hand a remote caller a
+//    shell on your VM.
 //
-//  * "-H" is prepended so every output line is prefixed with the filename,
-//    which is what the spec requires. GNU grep lets a later flag override an
-//    earlier one, so a user who passes -h, -c, or -l still gets what they
-//    asked for.
+//  * The filename is appended HERE, by the server, from its own config. It
+//    never comes off the wire.
 //
-//  * Count matched lines ON THE FLY while streaming. Running grep a second time
-//    with -c to get the count would double the work on a 60 MB file and roughly
-//    double your reported latency.
+//  * "-H" is prepended so every line carries its filename, which the spec
+//    requires. GNU grep lets a later flag win, so a user passing -h or -c still
+//    gets what they asked for.
 //
-//  * Read stdout and stderr from separate pipes. If you only drain one and grep
-//    fills the other, grep blocks forever on write() and your query hangs. Use
-//    poll() on both fds.
+// Simplification while learning: only grep's STDOUT is piped. Its stderr is
+// inherited, so a bad regex writes to the daemon's own log where you can read
+// it, and the client learns only that grep exited 2. Piping both would mean
+// poll()ing two fds, because draining one while grep fills the other deadlocks
+// -- real, but not what this MP is teaching. Add the second pipe when you add
+// the protocol's error text.
 //
 #include <cstdint>
 #include <functional>
@@ -36,33 +35,35 @@
 namespace mp1 {
 
 struct GrepResult {
-    int32_t  exit_code  = -1;  // 0 = matched, 1 = no match, 2 = error
+    int      exit_code  = -1;   // 0 = matched, 1 = no match, 2 = error
     uint64_t line_count = 0;
-    std::string stderr_text;   // captured so a bad regex reports a real reason
 };
 
-// Called with each chunk of grep stdout as it is produced. Returning false asks
-// the runner to abort early (used when the client has hung up).
-using ChunkSink = std::function<bool(const uint8_t* data, size_t len)>;
+// Called with each chunk of grep's stdout as it is produced. Return false to
+// abort early -- used when the client has hung up and nobody wants the rest.
+using ChunkSink = std::function<bool(const std::string& chunk)>;
 
-// TODO: implement with pipe(), fork(), execvp("grep", ...).
+// TODO: pipe() + fork() + execvp("grep", ...).
 //
-// Sketch of the parent loop:
-//   - poll() on {stdout_fd, stderr_fd}
-//   - on stdout data: count '\n' in the chunk, then hand it to `sink`
-//   - on stderr data: append to result.stderr_text (cap it; a pathological
-//     grep error should not let a peer balloon your memory)
-//   - on both closed: waitpid() and record the real exit status
+// The parent loop, once the child is running:
+//   - close the WRITE end of the pipe in the parent. Forget this and you never
+//     see EOF, because one copy of the write end is still open -- in you.
+//   - read() the pipe until it returns 0
+//   - count '\n' in each chunk, then hand the chunk to `sink`
+//   - waitpid() and record the real exit status
 //
-// Edge cases worth a test each:
-//   - a final line with no trailing newline (still one matched line)
-//   - grep exiting 1 with zero output (no match -- success, not failure)
-//   - grep exiting 2 (bad -E regex) -- stderr must reach the querier
-//   - the log file not existing on this machine
+// Count lines while streaming. Running grep a second time with -c to get the
+// count would re-read the whole 60 MB file and roughly double your latency.
+//
+// Edge cases worth one test each:
+//   - a final line with no trailing '\n' still counts as one line
+//   - exit 1 with no output is SUCCESS (no match), not a failure
+//   - exit 2 from a bad -E regex
+//   - the log file missing on this machine
 bool RunGrep(const std::vector<std::string>& user_args,
              const std::string& log_path,
              const ChunkSink& sink,
-             GrepResult& result,
+             GrepResult* result,
              std::string* err);
 
 }  // namespace mp1

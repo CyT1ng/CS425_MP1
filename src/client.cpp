@@ -1,33 +1,38 @@
 #include "mp1/client.hpp"
 
-#include <mutex>
-#include <thread>
-
-#include "mp1/net.hpp"
-#include "mp1/protocol.hpp"
-
 namespace mp1 {
 
-// TODO: one thread per machine, joined at the end. See client.hpp for the full
-// contract, the fault-tolerance requirements, and the stdout locking rule.
-//
-// Per-thread shape:
-//   t_start = Clock::now()
-//   fd = ConnectWithDeadline(...)          -> kUnreachable on failure
-//   WriteFull(EncodeRequest(args))
-//   loop: read 1-byte frame type, then the frame body
-//         kData    -> lock stdout, write chunk, unlock; tally lines
-//         kTrailer -> compare trailer count to lines actually received;
-//                     equal => kOk/kNoMatch, otherwise kPartial
-//         kError   -> kGrepError, keep stderr text
-//         EOF before any trailer -> kPartial (peer died mid-stream)
-//   result.latency = Clock::now() - t_start
+const char* StatusText(MachineStatus status) {
+    (void)status;
+    // TODO: one short label per status, for the summary table.
+    return "?";
+}
+
+MachineResult QueryOne(const Machine& machine,
+                       const std::vector<std::string>& grep_args,
+                       const QueryOptions& opts) {
+    (void)machine; (void)grep_args; (void)opts;
+    // TODO: Connect -> SendRequest -> RecvFrame until the END frame.
+    // Record this machine's own latency around the whole exchange.
+    //
+    // Never let a failure escape this function. A dead machine is a normal
+    // outcome that belongs in `status`, not an exception that aborts the query
+    // -- that is the fault-tolerance requirement, expressed as a return type.
+    return MachineResult{};
+}
 
 QuerySummary RunQuery(const std::vector<Machine>& machines,
                       const std::vector<std::string>& grep_args,
                       const QueryOptions& opts) {
     (void)machines; (void)grep_args; (void)opts;
-    return {};  // TODO
+    // TODO: t0, one std::async(std::launch::async, ...) per machine, collect
+    // every future, t1. See client.hpp for why launch::async is mandatory.
+    return QuerySummary{};
+}
+
+void PrintSummary(const QuerySummary& summary, const QueryOptions& opts) {
+    (void)summary; (void)opts;
+    // TODO: the per-machine table, then the totals line.
 }
 
 }  // namespace mp1

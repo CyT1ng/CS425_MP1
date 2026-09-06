@@ -2,25 +2,18 @@
 
 namespace mp1 {
 
-// TODO: fork + execvp. See grep_runner.hpp for the full contract.
-//
-// Order of operations in the parent, roughly:
-//   pipe(out_fds); pipe(err_fds);
-//   pid = fork();
-//   child:  dup2 both pipe write ends onto STDOUT/STDERR, close all other fds,
-//           build argv = {"grep", "-H", <user args...>, log_path, nullptr},
-//           execvp("grep", argv); _exit(127) if exec itself fails.
-//   parent: close the write ends (forgetting this means you never see EOF and
-//           the poll loop hangs forever), poll both read ends until both close,
-//           then waitpid and pull the exit status out of WEXITSTATUS.
+// See grep_runner.hpp. One pipe (stdout only), fork, execvp, drain, waitpid.
 
 bool RunGrep(const std::vector<std::string>& user_args,
              const std::string& log_path,
              const ChunkSink& sink,
-             GrepResult& result,
+             GrepResult* result,
              std::string* err) {
-    (void)user_args; (void)log_path; (void)sink; (void)result;
-    if (err) *err = "RunGrep not implemented";
+    (void)user_args; (void)log_path; (void)sink; (void)result; (void)err;
+    // TODO: build argv as { "grep", "-H", user_args..., log_path, nullptr },
+    // pipe(), fork(), and in the child dup2 the write end onto stdout and
+    // execvp. In the parent, close the write end FIRST -- otherwise the pipe
+    // never reports EOF, because you are still holding it open yourself.
     return false;
 }
 

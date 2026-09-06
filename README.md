@@ -104,10 +104,40 @@ matching starts, while local grep reads the same 60 MB at memory bandwidth on
 all machines *concurrently*. This is a scatter/gather fan-out — no partitioning,
 no shuffle, no reduce phase, and explicitly not MapReduce.
 
-The querier runs one thread per machine, each with its own connect deadline, so
-a failed machine costs one timeout instead of stalling the query. Every machine
-is reported explicitly as a line count or as `UNREACHABLE`/`PARTIAL`, so "no
-matches" is never confused with "machine is down".
+The querier launches one `std::async` task per machine, each with its own
+connect deadline, so a failed machine costs one timeout instead of stalling the
+query. Each task returns a finished result by value, which means no shared state
+and no locks. Every machine is reported explicitly — a line count, or
+`UNREACHABLE`/`PARTIAL` — so "no matches" is never confused with "machine down".
 
-See `include/mp1/protocol.hpp` for the wire format and `include/mp1/client.hpp`
-for the fan-out and fault-tolerance contract.
+### Wire protocol
+
+Deliberately text, not binary. Headers are ASCII lines; payloads carry their
+length so the reader always knows where they end:
+
+    client -> server    ARGS <argc>\n  then argc x  <len>\n<bytes>
+    server -> client    D <len>\n<bytes>   ...zero or more
+                        E <exit_code> <line_count>\n   ends the stream
+
+That costs a few bytes against a binary encoding and buys no byte-order code, no
+bit shifting, and the ability to point `nc` at a daemon and read the exchange.
+
+The `E` line is what makes failure detectable. Without it, "grep matched
+nothing", "grep rejected the regex", and "the machine died" are the same empty
+stream. `exit_code` separates the first two; `line_count`, checked against the
+lines actually received, catches a peer that died halfway.
+
+The request carries no filename — the server appends its own. So each machine
+necessarily greps `machine.<i>.log`, and a querier cannot ask a peer for an
+arbitrary file, because the protocol has no field to put one in.
+
+### Staged on purpose
+
+Some hardening is deliberately deferred and tracked in `MP1_PLAN.md` Phase D: a
+version greeting, length caps on incoming frames, and a second pipe carrying
+grep's stderr back to the querier. Each is listed with its reason at the bottom
+of `include/mp1/protocol.hpp`.
+
+See `include/mp1/protocol.hpp` for the wire format, `include/mp1/net.hpp` for the
+`Conn` socket wrapper, and `include/mp1/client.hpp` for the fan-out and
+fault-tolerance contract.

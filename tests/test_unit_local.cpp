@@ -11,31 +11,47 @@
 #include "mp1/protocol.hpp"
 
 // --- protocol -------------------------------------------------------------
+//
+// These run over a socketpair(), so they exercise the real Conn read/write
+// loops and the real wire format without any network, ports, or daemons.
 
-TEST(EncodeDecodeRequest_RoundTrips) {
-    // TODO: encode a Request, decode it, assert argv comes back identical.
-    // Include awkward args: an empty string, a UTF-8 pattern, a 4 KB pattern,
-    // one containing a literal newline, one that looks like a flag ("--color").
+TEST(Conn_ReadLineHandlesSplitAndCoalescedReads) {
+    // TODO: write "AB", then "C\nDEF\n", as two separate writes. ReadLine must
+    // return "ABC" and then "DEF". One read() can stop in the middle of a line
+    // or deliver two at once -- this is the test for the buffer inside Conn,
+    // and it fails immediately if you forget to keep leftover bytes.
 }
 
-TEST(DecodeRequest_RejectsBadMagic) {
-    // TODO: flip a magic byte -> must return false, not crash.
+TEST(Conn_ReadExactlyDetectsShortStream) {
+    // TODO: write 10 bytes, close the writing end, then ask for 100. Must fail,
+    // not return the 10 as if that were all there was. A peer dying mid-message
+    // is exactly this.
 }
 
-TEST(DecodeRequest_RejectsTruncatedBuffer) {
-    // TODO: encode a valid request, then chop the buffer at every length from 0
-    // to size-1. Every prefix must be rejected cleanly. This is the loop that
-    // catches out-of-bounds reads in the decoder.
+TEST(Protocol_RequestRoundTrips) {
+    // TODO: SendRequest on one end, RecvRequest on the other; argv must come
+    // back identical. Include awkward arguments: an empty string, a UTF-8
+    // pattern, a 4 KB pattern, one containing a literal newline, and one that
+    // looks like a flag ("--color"). The newline case is the entire reason
+    // arguments are length-prefixed instead of one-per-line.
 }
 
-TEST(DecodeRequest_RejectsOversizedLengths) {
-    // TODO: hand-build a buffer claiming argc = 60000 or len = 0xFFFFFFFF.
-    // Must be rejected by the guardrails without attempting the allocation.
+TEST(Protocol_DataAndEndFramesRoundTrip) {
+    // TODO: SendData twice, then SendEnd; RecvFrame three times. Use
+    // exit_code = 1 (no match) and a line_count above 2^32 -- that catches a
+    // count that got parsed into a 32-bit type somewhere.
 }
 
-TEST(TrailerFrame_RoundTrips) {
-    // TODO: including exit_code = 1 (no match) and a line_count above 2^32,
-    // which catches a uint64 accidentally serialized as uint32.
+TEST(Protocol_RejectsGarbageHeader) {
+    // TODO: write "HELLO\n" and assert RecvFrame fails cleanly rather than
+    // hanging or crashing. This is what pointing dgrep at the wrong port looks
+    // like, and it should say so instead of printing nonsense.
+}
+
+TEST(Protocol_TruncatedFrameIsDetected) {
+    // TODO: send "D 100\n" but only 10 bytes of payload, then close. RecvFrame
+    // must fail instead of handing back a short chunk as though it were whole.
+    // This is the killed-mid-stream case that becomes kPartial.
 }
 
 // --- config ---------------------------------------------------------------
@@ -69,19 +85,24 @@ TEST(RunGrep_NoMatchIsExitOneNotAnError) {
     // makes a legitimately empty answer look like a dead machine.
 }
 
-TEST(RunGrep_BadRegexReportsStderr) {
-    // TODO: -E '(' -> exit_code == 2 and stderr_text is non-empty.
+TEST(RunGrep_BadRegexIsExitTwo) {
+    // TODO: -E '(' -> exit_code == 2, and RunGrep itself still returns true:
+    // it ran grep successfully, grep just disliked the pattern.
+    // grep's message goes to the daemon's own stderr for now; carrying the text
+    // back to the querier arrives with the protocol's error frame.
 }
 
-TEST(RunGrep_MissingLogFileReportsError) {
-    // TODO: point at a nonexistent path -> exit 2, message reaches the caller.
+TEST(RunGrep_MissingLogFileIsExitTwo) {
+    // TODO: point at a nonexistent path -> exit_code == 2. On the VMs this is
+    // the "someone rebooted and the logs were not regenerated" case, so it
+    // needs to look like an error and not like an empty result.
 }
 
-TEST(RunGrep_LargeOutputDoesNotDeadlock) {
-    // TODO: a pattern matching ~50 MB worth of lines. If you only drain stdout
-    // and never stderr (or vice versa) this test hangs -- which is exactly the
-    // point of having it. Give the suite a watchdog so a hang fails instead of
-    // blocking CI forever.
+TEST(RunGrep_LargeOutputStreamsWithoutStalling) {
+    // TODO: a pattern matching ~50 MB worth of lines. A pipe holds only ~64 KB,
+    // so grep blocks on write() until you read; if the parent waits for the
+    // child before draining, this deadlocks forever. Read first, waitpid last.
+    // Give the suite a watchdog so a hang fails instead of hanging the run.
 }
 
 TEST(RunGrep_PassesThroughGrepFlags) {

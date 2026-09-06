@@ -11,6 +11,7 @@
 // It also generates the 60 MB x 4 logs the report's measurements need.
 //
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -33,10 +34,10 @@ struct LogSpec {
 
 // Ground truth the tests assert against.
 struct ExpectedCounts {
-    // token -> per-machine expected matching-line count
-    std::vector<std::pair<std::string, std::vector<std::pair<int, uint64_t>>>> by_token;
+    // token -> (machine id -> expected number of MATCHING LINES on that machine)
+    std::map<std::string, std::map<int, uint64_t>> by_token;
 
-    // TODO: total across machines for `token`.
+    // TODO: sum across machines for `token`. Returns 0 for an unknown token.
     uint64_t TotalFor(const std::string& token) const;
 };
 

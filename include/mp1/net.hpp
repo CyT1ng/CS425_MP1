@@ -1,59 +1,85 @@
 #pragma once
 //
-// Thin socket helpers shared by the client and the server.
+// Sockets, wrapped in one small object.
 //
-// The three bugs that sink this MP live in this file, so write it carefully and
-// unit test it before touching anything else:
+// TCP hands you a byte stream: a read() may return fewer bytes than you asked
+// for, and a write() may accept fewer than you gave it. Rather than make every
+// caller remember that, all the looping lives in Conn, and the rest of the
+// program works in terms of "give me a line" and "give me exactly N bytes".
 //
-//   1. Partial reads/writes. TCP is a byte stream. A single read() may return
-//      fewer bytes than you asked for, and a single write() may accept fewer
-//      bytes than you handed it. ReadFull/WriteFull must loop.
-//   2. EINTR. A blocking syscall interrupted by a signal returns -1/EINTR and
-//      must be retried, not treated as a failure.
-//   3. Unbounded blocking on a dead peer. A failed VM that drops packets (as
-//      opposed to refusing the connection) will hang connect() or read() for
-//      the OS default -- minutes. Every call here takes a deadline so a single
-//      dead machine cannot stall the whole query.
+// Conn owns its file descriptor and closes it in the destructor, so no code
+// path can leak a socket by returning early. It is movable but not copyable --
+// two objects closing the same fd would be a bug.
 //
 #include <chrono>
 #include <cstdint>
 #include <string>
-#include <vector>
 
 namespace mp1 {
 
-using Clock    = std::chrono::steady_clock;
-using TimePoint = Clock::time_point;
+class Conn {
+public:
+    Conn() = default;                 // invalid; valid() is false
+    explicit Conn(int fd) : fd_(fd) {}
+    ~Conn();
 
-// TODO: resolve `host` (getaddrinfo, AF_UNSPEC so both IPv4 and IPv6 work) and
-// connect, giving up at `deadline`. Use a non-blocking socket + poll(POLLOUT)
-// so the timeout is actually enforced; then check SO_ERROR to distinguish
-// "connected" from "connection refused". Return -1 on failure, else the fd.
-//
-// Distinguish these for the caller, because the demo will exercise both:
-//   ECONNREFUSED -> the VM is up but mp1d is not running
-//   ETIMEDOUT    -> the VM itself is gone
-int ConnectWithDeadline(const std::string& host, uint16_t port,
-                        TimePoint deadline, std::string* err);
+    Conn(Conn&& other) noexcept;
+    Conn& operator=(Conn&& other) noexcept;
+    Conn(const Conn&)            = delete;
+    Conn& operator=(const Conn&) = delete;
 
-// TODO: bind + listen on `port` on all interfaces. Set SO_REUSEADDR so a
-// restarted daemon does not fail on a lingering TIME_WAIT socket -- you will
-// restart mp1d constantly while developing.
+    bool valid() const { return fd_ >= 0; }
+    int  fd()    const { return fd_; }
+
+    // TODO: read up to and including the next '\n', return the line WITHOUT it.
+    // Needs a small internal buffer: a single read() can straddle a newline or
+    // return several lines at once, so leftover bytes must survive to the next
+    // call. That buffer is why this is a class and not three free functions.
+    // Returns false on EOF before any '\n', or on error.
+    bool ReadLine(std::string* line, std::string* err);
+
+    // TODO: read exactly `n` bytes. Loop until you have them all. A clean EOF
+    // partway through means the peer died mid-message -- that is a failure, and
+    // it is exactly how a killed VM is detected. Drain the internal buffer from
+    // ReadLine first.
+    bool ReadExactly(size_t n, std::string* out, std::string* err);
+
+    // TODO: write all of `data`, looping on short writes.
+    bool WriteAll(const std::string& data, std::string* err);
+
+    // TODO: SO_RCVTIMEO, so a peer that goes silent fails instead of hanging
+    // forever. Note this does NOT apply to connect() -- see Connect below.
+    bool SetReadTimeout(std::chrono::milliseconds timeout, std::string* err);
+
+private:
+    int         fd_ = -1;
+    std::string buf_;   // bytes read but not yet consumed
+};
+
+// TODO: bind + listen on `port`, all interfaces. Set SO_REUSEADDR or a
+// restarted daemon fails on a lingering TIME_WAIT socket -- and you will
+// restart mp1d constantly. Returns the listening fd, or -1.
 int Listen(uint16_t port, std::string* err);
 
-// TODO: read exactly `len` bytes into `buf`, or fail at `deadline`.
-// Loop on short reads, retry EINTR, and treat a clean EOF before `len` bytes as
-// a truncation error (the peer died mid-message).
-bool ReadFull(int fd, uint8_t* buf, size_t len, TimePoint deadline);
+// TODO: accept one connection. Returns an invalid Conn on failure.
+Conn Accept(int listen_fd, std::string* err);
 
-// TODO: write exactly `len` bytes. Same loop/EINTR rules.
-// Also: ignore SIGPIPE process-wide (or send with MSG_NOSIGNAL) or writing to a
-// peer that just died will kill your process instead of returning EPIPE.
-bool WriteFull(int fd, const uint8_t* buf, size_t len, TimePoint deadline);
+// TODO: resolve `host` and connect, giving up after `timeout`.
+//
+// This one cannot use SO_RCVTIMEO: Linux ignores socket timeouts for connect().
+// Use a non-blocking socket + poll(POLLOUT), then check SO_ERROR to tell
+// "connected" from "refused". Without this, one dead VM stalls the whole query
+// for the OS default -- minutes.
+//
+// Both outcomes show up at the demo, so keep them distinguishable in `err`:
+//   ECONNREFUSED -> the VM is up, mp1d is not running
+//   ETIMEDOUT    -> the VM itself is gone
+Conn Connect(const std::string& host, uint16_t port,
+             std::chrono::milliseconds timeout, std::string* err);
 
-// TODO: read up to `len` bytes, returning however many arrived (>0), 0 on clean
-// EOF, or -1 on error/timeout. This is the streaming read the client uses to
-// drain DATA frames without knowing the total size in advance.
-ssize_t ReadSome(int fd, uint8_t* buf, size_t len, TimePoint deadline);
+// TODO: ignore SIGPIPE process-wide. Call once at the top of main in both
+// binaries. Without it, writing to a peer that just died kills your process
+// instead of returning an error -- which looks exactly like a crash bug.
+void IgnoreSigpipe();
 
 }  // namespace mp1

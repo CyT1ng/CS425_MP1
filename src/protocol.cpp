@@ -2,50 +2,42 @@
 
 namespace mp1 {
 
-// See protocol.hpp for the byte layout. Write PutU32/GetU32 first and test them
-// on their own -- everything else here is built from them, and an endianness
-// bug at this level only shows up as garbage on the wire.
+// See protocol.hpp for the exact wire format. Everything here is one line of
+// ASCII header plus, sometimes, a length-prefixed payload -- Conn does all the
+// looping, so these functions stay short.
 
-void PutU32(uint32_t v, std::vector<uint8_t>& out) {
-    (void)v; (void)out;
-    // TODO
-}
-
-void PutU64(uint64_t v, std::vector<uint8_t>& out) {
-    (void)v; (void)out;
-    // TODO
-}
-
-uint32_t GetU32(const uint8_t* p) {
-    (void)p;
-    return 0;  // TODO
-}
-
-uint64_t GetU64(const uint8_t* p) {
-    (void)p;
-    return 0;  // TODO
-}
-
-void EncodeRequest(const Request& req, std::vector<uint8_t>& out) {
-    (void)req; (void)out;
-    // TODO
-}
-
-bool DecodeRequest(const std::vector<uint8_t>& buf, Request& out) {
-    (void)buf; (void)out;
-    // TODO: argc, then each arg. Check every length actually fits inside buf.
+bool SendRequest(Conn& conn, const Request& req, std::string* err) {
+    (void)conn; (void)req; (void)err;
+    // TODO: "ARGS <n>\n", then per argument "<len>\n" followed by the bytes.
     return false;
 }
 
-void EncodeDataFrame(const uint8_t* data, size_t len, std::vector<uint8_t>& out) {
-    (void)data; (void)len; (void)out;
-    // TODO
+bool RecvFrame(Conn& conn, Frame* out, std::string* err) {
+    (void)conn; (void)out; (void)err;
+    // TODO: ReadLine, then switch on the first character: 'D' -> read the
+    // length and that many bytes; 'E' -> parse exit code and line count.
+    // Anything else is a protocol error, and saying so is what turns a
+    // wrong-port connection into a clear message instead of garbage output.
+    return false;
 }
 
-void EncodeEndFrame(int32_t exit_code, uint64_t line_count,
-                    std::vector<uint8_t>& out) {
-    (void)exit_code; (void)line_count; (void)out;
-    // TODO
+bool RecvRequest(Conn& conn, Request* out, std::string* err) {
+    (void)conn; (void)out; (void)err;
+    // TODO: the mirror of SendRequest. This parses bytes a stranger sent you,
+    // so validate the header rather than trusting it.
+    return false;
+}
+
+bool SendData(Conn& conn, const std::string& chunk, std::string* err) {
+    (void)conn; (void)chunk; (void)err;
+    // TODO: "D <len>\n" then the bytes.
+    return false;
+}
+
+bool SendEnd(Conn& conn, int exit_code, uint64_t line_count, std::string* err) {
+    (void)conn; (void)exit_code; (void)line_count; (void)err;
+    // TODO: "E <exit_code> <line_count>\n". Send it even when grep failed.
+    return false;
 }
 
 }  // namespace mp1
