@@ -3,6 +3,16 @@
 #include <unistd.h>
 
 namespace mp1 {
+namespace {
+// Helper for the Conn methods below. If `err` is non-null, writes a message
+// that includes the current errno. Returns false, so callers can just `return
+// Fail(...)`.
+bool Fail(std::string* err, const char* what) {
+    if (err) *err = std::string(what) + ": " + std::strerror(errno);
+    return false;
+}
+
+}  // namespace
 
 // --- Conn lifetime --------------------------------------------------------
 // Boilerplate RAII: the destructor closes, and moving transfers ownership by
@@ -30,10 +40,10 @@ Conn& Conn::operator=(Conn&& other) noexcept {
 // --- Conn I/O -------------------------------------------------------------
 
 bool Conn::ReadLine(std::string* line, std::string* err) {
-    (void)line; (void)err;
     // TODO: look for '\n' in buf_; if absent, read() more and append. When you
     // find one, hand back everything before it and ERASE it plus the newline
     // from buf_ -- the bytes after it belong to the next message.
+    
     return false;
 }
 
@@ -45,9 +55,17 @@ bool Conn::ReadExactly(size_t n, std::string* out, std::string* err) {
 }
 
 bool Conn::WriteAll(const std::string& data, std::string* err) {
-    (void)data; (void)err;
     // TODO: loop until every byte is written; write() may accept only some.
-    return false;
+    size_t sent = 0;
+    while (sent < data.size()) {
+        ssize_t n = ::write(fd_, data.data() + sent, data.size() - sent);
+        if (n < 0)  {
+            if (errno == EINTR) continue;  // signal interrupted the syscall
+            return Fail(err, "write");
+        }
+        sent += static_cast<size_t>(n);
+    }
+    return true;
 }
 
 bool Conn::SetReadTimeout(std::chrono::milliseconds timeout, std::string* err) {

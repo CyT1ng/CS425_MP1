@@ -19,19 +19,19 @@ Produces four binaries in `bin/`:
 
 | Binary | Role |
 |---|---|
-| `mp1d` | log server daemon; one per machine |
-| `dgrep` | the distributed querier; run from any machine |
-| `mp1gen` | deterministic log generator |
-| `mp1tests` | the full unit test suite |
+| `log-server` | the log daemon; one per machine |
+| `log-query` | the distributed querier; run from any machine |
+| `log-gen` | deterministic log generator |
+| `run-tests` | the full unit test suite |
 
 ## Run the unit tests
 
     make test          # or: ./scripts/run_tests.sh
 
 Runs the local tests and the distributed tests. The distributed tests bring up
-their own throwaway cluster of `mp1d` processes on `127.0.0.1`, generate logs,
-query them, and inject failures — no manual setup, and no VMs required. Exit
-status is nonzero if anything fails.
+their own throwaway cluster of `log-server` processes on `127.0.0.1`, generate
+logs, query them, and inject failures — no manual setup, and no VMs required.
+Exit status is nonzero if anything fails.
 
 ## Run MP1
 
@@ -45,8 +45,8 @@ rejected at startup.
 
 **2. Start a daemon on every machine.**
 
-    ./bin/mp1gen --id <i> --seed 42 --lines 300000    # generate machine.<i>.log
-    ./bin/mp1d   --id <i> --port 4425                 # serve it
+    ./bin/log-gen --id <i> --seed 42 --lines 300000   # generate machine.<i>.log
+    ./bin/log-server --id <i> --port 4425             # serve it
 
 On the VM cluster, `./scripts/deploy.sh` does the clone, build, log generation,
 and daemon start across every machine in the config at once:
@@ -58,11 +58,11 @@ host for development.
 
 **3. Query from any machine.**
 
-    ./bin/dgrep -- ERROR
-    ./bin/dgrep -- -c ERROR
-    ./bin/dgrep -- -E '(WARN|ERROR).*timeout'
-    ./bin/dgrep -- -i -n "connection refused"
-    ./bin/dgrep -- -v -E '^DEBUG'
+    ./bin/log-query -- ERROR
+    ./bin/log-query -- -c ERROR
+    ./bin/log-query -- -E '(WARN|ERROR).*timeout'
+    ./bin/log-query -- -i -n "connection refused"
+    ./bin/log-query -- -v -E '^DEBUG'
 
 Everything after `--` is passed to `grep` untouched, so every grep option works,
 including arbitrary `-E` regexes. Output looks like:
@@ -97,7 +97,7 @@ plotted together with SD as error bars.
 
 ## Design summary
 
-`dgrep` ships the **query to the data**, never the data to the querier: each
+`log-query` ships the **query to the data**, never the data to the querier: each
 machine greps its own log locally and returns only matching lines. At the demo's
 scale, fetching logs would move 60 MB per machine across the network before any
 matching starts, while local grep reads the same 60 MB at memory bandwidth on
@@ -138,6 +138,8 @@ version greeting, length caps on incoming frames, and a second pipe carrying
 grep's stderr back to the querier. Each is listed with its reason at the bottom
 of `include/mp1/protocol.hpp`.
 
-See `include/mp1/protocol.hpp` for the wire format, `include/mp1/net.hpp` for the
+`ARCHITECTURE.md` explains every function in plain language and walks through
+a query end to end. For the code itself, see `include/mp1/protocol.hpp` for the
+wire format, `include/mp1/net.hpp` for the
 `Conn` socket wrapper, and `include/mp1/client.hpp` for the fan-out and
 fault-tolerance contract.

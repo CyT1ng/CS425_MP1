@@ -109,7 +109,7 @@ bool LoadMachines(const std::string& path, std::vector<Machine>& out,
 // Returns "machine.<id>.log".
 //
 // Trivial on purpose. The value is not the string concatenation, it is that
-// mp1d, mp1gen and the tests all read the naming rule from one place.
+// log-server, log-gen and the tests all read the naming rule from one place.
 std::string LogFileName(int id) {
     return "machine." + std::to_string(id) + ".log";
 }

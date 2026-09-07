@@ -40,7 +40,7 @@ struct Machine {
 //   - a port outside 1..65535. Range-check BEFORE narrowing to uint16_t, or
 //     70000 silently becomes 4464 and the daemon binds a port nobody calls.
 //   - a file that parses cleanly but defines no machines, which would leave
-//     dgrep fanning out to nobody and exiting 0 -- indistinguishable from a
+//     log-query fanning out to nobody and exiting 0 -- indistinguishable from a
 //     pattern that legitimately had no matches
 //
 // Hostnames are NOT resolved here, so a machine in the list is well-formed, not
@@ -54,8 +54,8 @@ struct Machine {
 //
 // A typo here otherwise surfaces as a mysterious "machine unreachable" at demo
 // time, which is a bad way to find out. Both callers default to a RELATIVE path
-// (dgrep --config, deploy.sh:14), so a missing file usually means nothing worse
-// than the wrong working directory -- say so plainly.
+// (log-query --config, deploy.sh:14), so a missing file usually means nothing
+// worse than the wrong working directory -- say so plainly.
 bool LoadMachines(const std::string& path, std::vector<Machine>& out,
                   std::string* err);
 
@@ -66,10 +66,10 @@ bool LoadMachines(const std::string& path, std::vector<Machine>& out,
 // does with `log_dir + "/" + LogFileName(id)`.
 //
 // It is a shared function rather than a format string repeated at each use site
-// because three binaries have to agree on it: mp1d greps the file, mp1gen
-// writes it, and the tests assert on it. Separate copies would drift, and the
-// symptom -- a daemon serving a file the generator never created -- reads as a
-// dead machine rather than a naming bug.
+// because three binaries have to agree on it: log-server greps the file,
+// log-gen writes it, and the tests assert on it. Separate copies would drift,
+// and the symptom -- a daemon serving a file the generator never created --
+// reads as a dead machine rather than a naming bug.
 std::string LogFileName(int id);
 
 }  // namespace mp1

@@ -6,4 +6,4 @@ set -euo pipefail
 
 make clean
 make all
-./bin/mp1tests
+./bin/run-tests

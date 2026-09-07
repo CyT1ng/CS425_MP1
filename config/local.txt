@@ -1,5 +1,5 @@
 # CS425 MP1 -- local development: N processes on one host.
-#   ./bin/dgrep --config config/local.txt -- <grep args>
+#   ./bin/log-query --config config/local.txt -- <grep args>
 #
 #   <id>  <host>  <port>
 #

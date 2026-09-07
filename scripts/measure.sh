@@ -11,9 +11,9 @@
 # So: 4 machines, 60 MB each, 3 query classes, >= 5 trials. Defaults to 7 trials
 # so you can drop a warm-up and still clear the bar.
 #
-# Latency comes from dgrep's OWN reported number, not from `time ./dgrep`.
-# Wrapping the process would fold in exec and dynamic-linker startup, which is
-# not what the spec defines the metric as.
+# Latency comes from log-query's OWN reported number, not from
+# `time ./log-query`. Wrapping the process would fold in exec and dynamic-linker
+# startup, which is not what the spec defines the metric as.
 #
 # WARM VS COLD CACHE: the first read of a 60 MB file comes off disk, later ones
 # come out of the page cache, and the difference is larger than the effect you
@@ -46,14 +46,14 @@ for class in rare infrequent frequent; do
     echo "=== $class ($pattern) ==="
 
     # Warm-up, discarded.
-    ./bin/dgrep --config "$CONFIG" -- -c "$pattern" > /dev/null 2>&1 || true
+    ./bin/log-query --config "$CONFIG" -- -c "$pattern" > /dev/null 2>&1 || true
 
     for t in $(seq 1 "$TRIALS"); do
-        # TODO: have dgrep emit a machine-readable summary line, e.g.
+        # TODO: have log-query emit a machine-readable summary line, e.g.
         #   SUMMARY latency_ms=412 total_lines=1423 machines_ok=4
         # and parse it here. Printing a parseable line beats scraping the pretty
         # table, and it keeps the human output free to stay readable.
-        line=$(./bin/dgrep --config "$CONFIG" --counts-only -- "$pattern" \
+        line=$(./bin/log-query --config "$CONFIG" --counts-only -- "$pattern" \
                | grep '^SUMMARY' || true)
         ms=$(sed -n 's/.*latency_ms=\([0-9]*\).*/\1/p'   <<< "$line")
         n=$( sed -n 's/.*total_lines=\([0-9]*\).*/\1/p'  <<< "$line")

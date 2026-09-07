@@ -1,6 +1,7 @@
-// mp1d -- the log server. One instance runs on every VM.
+// log-server -- serves grep queries against this machine's log.
+// One instance runs on every VM.
 //
-//   mp1d --id <machine-id> [--port 4425] [--log-dir .]
+//   log-server --id <machine-id> [--port 4425] [--log-dir .]
 //
 // Accepts a connection, reads one Request, greps this machine's own
 // machine.<id>.log, streams the result back, closes. One connection per query.
@@ -26,7 +27,7 @@ namespace {
 
 void Usage() {
     std::fprintf(stderr,
-                 "usage: mp1d --id <machine-id> [--port <port>] "
+                 "usage: log-server --id <machine-id> [--port <port>] "
                  "[--log-dir <dir>]\n");
 }
 

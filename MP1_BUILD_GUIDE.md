@@ -37,7 +37,7 @@ Everything else stands on this. `include/mp1/net.hpp` has the contract.
 **Write, in this order:**
 
 1. `Conn::WriteAll` — loop until every byte is out. Easiest one; start here to
-   get familiar with the shape.
+   get familiar with the shape. 
 2. `Conn::ReadLine` — the important one. Keep a `std::string buf_`. Look for
    `\n` in it; if it is not there, `read()` more and append. When you find one,
    return everything before it and **erase it plus the newline** from `buf_`.
@@ -70,7 +70,7 @@ timeout, one dead VM stalls your entire query for minutes.
 
 **Verify by hand:**
 
-    ./bin/mp1d --id 1 --port 4425      # will not work yet, but should not crash
+    ./bin/log-server --id 1 --port 4425 # will not work yet, but must not crash
     nc -l 4425                          # in one terminal
     # then connect from another and see bytes arrive
 
@@ -123,7 +123,7 @@ Count `\n` in each chunk as you stream it. Do not run grep twice to get a count.
 right — exit 1 is a *successful* answer, and conflating it with failure is the
 single most common way to lose points here.
 
-### 3b. `mp1gen` and `GenerateLog`
+### 3b. `log-gen` and `GenerateLog`
 
 Seed a `std::mt19937_64` with `spec.seed`. Never `rand()`, never the clock, or
 your logs differ between machines and every expected count becomes fiction.
@@ -135,7 +135,7 @@ files. And `GenerateLog_ExpectedCountsMatchRealGrep`, which checks your oracle
 against actual grep. Without that one, your distributed tests only prove two
 pieces of your own code agree with each other.
 
-### 3c. `mp1d`
+### 3c. `log-server`
 
 Parse `--id`, `--port`, `--log-dir`. `IgnoreSigpipe()`. `Listen`. Then an accept
 loop that hands each connection to a detached thread:
@@ -147,8 +147,8 @@ client needs *something* to distinguish a broken machine from a silent one.
 
 **Milestone — do this by hand:**
 
-    ./bin/mp1gen --id 1 --seed 42 --lines 50000 --out-dir /tmp/mp1
-    ./bin/mp1d --id 1 --port 9401 --log-dir /tmp/mp1 &
+    ./bin/log-gen --id 1 --seed 42 --lines 50000 --out-dir /tmp/mp1
+    ./bin/log-server --id 1 --port 9401 --log-dir /tmp/mp1 &
     nc 127.0.0.1 9401
     ARGS 2
     2
@@ -174,8 +174,8 @@ tolerance requirement, expressed as a return type.
 
 ### 4b. `client_main.cpp`
 
-Parse `dgrep` flags, then `LoadMachines`, then `RunQuery`, then `PrintSummary`,
-then the exit code (0 matched / 1 no match / 2 error).
+Parse `log-query` flags, then `LoadMachines`, then `RunQuery`, then
+`PrintSummary`, then the exit code (0 matched / 1 no match / 2 error).
 
 Flag parsing rule: stop parsing **your** flags at the first argument you do not
 recognise, or at a literal `--`, and forward the entire rest verbatim. Get
@@ -195,7 +195,7 @@ still works; your latency plot is quietly wrong.
 **Milestone:**
 
     ./scripts/start_cluster.sh 6
-    ./bin/dgrep --config config/local.txt -- -c ERROR
+    ./bin/log-query --config config/local.txt -- -c ERROR
 
 Six machines answering one query. **This is the MP working.** Commit.
 

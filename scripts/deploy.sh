@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull, rebuild, and restart mp1d on every VM.
+# Pull, rebuild, and restart log-server on every VM.
 #
 #   ./scripts/deploy.sh [config/machines.txt]
 #
@@ -25,7 +25,7 @@ grep -vE '^\s*(#|$)' "$CONFIG" | while read -r id host port; do
 set -euo pipefail
 REPO=$1; DIR=$2; ID=$3; PORT=$4; SEED=$5; LINES=$6
 
-pkill -f "mp1d --id" || true
+pkill -f "log-server --id" || true
 
 if [ -d "$DIR/.git" ]; then
     git -C "$DIR" fetch --quiet origin && git -C "$DIR" reset --hard --quiet origin/HEAD
@@ -35,11 +35,11 @@ fi
 
 cd "$DIR"
 make --quiet all
-./bin/mp1gen --id "$ID" --seed "$SEED" --lines "$LINES" --out-dir "$DIR"
-nohup ./bin/mp1d --id "$ID" --port "$PORT" --log-dir "$DIR" \
-    > "$DIR/mp1d.out" 2>&1 &
+./bin/log-gen --id "$ID" --seed "$SEED" --lines "$LINES" --out-dir "$DIR"
+nohup ./bin/log-server --id "$ID" --port "$PORT" --log-dir "$DIR" \
+    > "$DIR/log-server.out" 2>&1 &
 sleep 0.5
-pgrep -f "mp1d --id $ID" > /dev/null && echo "machine $ID up" || { echo "machine $ID FAILED"; exit 1; }
+pgrep -f "log-server --id $ID" > /dev/null && echo "machine $ID up" || { echo "machine $ID FAILED"; exit 1; }
 REMOTE
 done
 

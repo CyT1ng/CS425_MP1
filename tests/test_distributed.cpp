@@ -54,8 +54,8 @@ TEST(Distributed_PatternInAllLogs) {
 }
 
 TEST(Distributed_PatternInNoLog) {
-    // TODO: a token never planted anywhere -> 0 everywhere, dgrep exit code 1,
-    // and no machine marked failed.
+    // TODO: a token never planted anywhere -> 0 everywhere, log-query exit
+    // code 1, and no machine marked failed.
 }
 
 // --- output correctness ---------------------------------------------------

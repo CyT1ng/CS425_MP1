@@ -58,7 +58,7 @@ private:
 
 // TODO: bind + listen on `port`, all interfaces. Set SO_REUSEADDR or a
 // restarted daemon fails on a lingering TIME_WAIT socket -- and you will
-// restart mp1d constantly. Returns the listening fd, or -1.
+// restart log-server constantly. Returns the listening fd, or -1.
 int Listen(uint16_t port, std::string* err);
 
 // TODO: accept one connection. Returns an invalid Conn on failure.
@@ -72,7 +72,7 @@ Conn Accept(int listen_fd, std::string* err);
 // for the OS default -- minutes.
 //
 // Both outcomes show up at the demo, so keep them distinguishable in `err`:
-//   ECONNREFUSED -> the VM is up, mp1d is not running
+//   ECONNREFUSED -> the VM is up, log-server is not running
 //   ETIMEDOUT    -> the VM itself is gone
 Conn Connect(const std::string& host, uint16_t port,
              std::chrono::milliseconds timeout, std::string* err);

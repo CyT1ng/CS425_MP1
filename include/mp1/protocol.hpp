@@ -1,6 +1,7 @@
 #pragma once
 //
-// The conversation between dgrep (the querier) and mp1d (a log server).
+// The conversation between log-query (the querier) and log-server (one
+// machine's log daemon).
 //
 // Deliberately a TEXT protocol. Headers are ASCII lines; payloads are prefixed
 // with their length so the reader always knows where they end. That costs a few
@@ -46,7 +47,7 @@
 // ---------------------------------------------------------------------------
 // Deferred, on purpose -- add before the cluster demo
 // ---------------------------------------------------------------------------
-//   A "MP1 <version>\n" greeting line, so pointing dgrep at the wrong port
+//   A "MP1 <version>\n" greeting line, so pointing log-query at the wrong port
 //   fails loudly instead of parsing another service's bytes as grep output.
 //   Length caps (kMaxArgs, kMaxLineLen): a length is a number the PEER chose.
 //   Carrying grep's stderr text back, so an error says why and not just that.

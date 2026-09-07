@@ -23,24 +23,24 @@ TEST_SRC := tests/test_main.cpp tests/harness.cpp \
             tests/test_unit_local.cpp tests/test_distributed.cpp
 TEST_OBJ := $(TEST_SRC:%.cpp=$(OBJ)/%.o)
 
-TARGETS  := $(BIN)/mp1d $(BIN)/dgrep $(BIN)/mp1gen $(BIN)/mp1tests
+TARGETS  := $(BIN)/log-server $(BIN)/log-query $(BIN)/log-gen $(BIN)/run-tests
 
 .PHONY: all test clean
 all: $(TARGETS)
 
-$(BIN)/mp1d: $(OBJ)/src/server_main.o $(LIB_OBJ)
+$(BIN)/log-server: $(OBJ)/src/server_main.o $(LIB_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
-$(BIN)/dgrep: $(OBJ)/src/client_main.o $(LIB_OBJ)
+$(BIN)/log-query: $(OBJ)/src/client_main.o $(LIB_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
-$(BIN)/mp1gen: $(OBJ)/src/gen_main.o $(LIB_OBJ)
+$(BIN)/log-gen: $(OBJ)/src/gen_main.o $(LIB_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
-$(BIN)/mp1tests: $(TEST_OBJ) $(LIB_OBJ)
+$(BIN)/run-tests: $(TEST_OBJ) $(LIB_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
@@ -48,8 +48,8 @@ $(OBJ)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -Itests -c $< -o $@
 
-test: $(BIN)/mp1tests
-	./$(BIN)/mp1tests
+test: $(BIN)/run-tests
+	./$(BIN)/run-tests
 
 clean:
 	rm -rf $(OBJ) $(BIN)

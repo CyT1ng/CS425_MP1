@@ -44,8 +44,8 @@ TEST(Protocol_DataAndEndFramesRoundTrip) {
 
 TEST(Protocol_RejectsGarbageHeader) {
     // TODO: write "HELLO\n" and assert RecvFrame fails cleanly rather than
-    // hanging or crashing. This is what pointing dgrep at the wrong port looks
-    // like, and it should say so instead of printing nonsense.
+    // hanging or crashing. This is what pointing log-query at the wrong port
+    // looks like, and it should say so instead of printing nonsense.
 }
 
 TEST(Protocol_TruncatedFrameIsDetected) {

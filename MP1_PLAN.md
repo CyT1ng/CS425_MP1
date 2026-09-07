@@ -3,10 +3,7 @@
 Companion to `MP1_REQUIREMENTS.md`. Working document: tick boxes as you go.
 
 > **Course rule, from the spec — not in the requirements summary:**
-> *"DO NOT use LLMs for generating your MP1 code... If we find signs of LLM
-> usage or if you're unable to explain your code during your demo then you will
-> get a zero for this MP."*
->
+
 > The skeleton in this repo is structure, contracts, and test names. Every
 > function body is a `TODO` on purpose. Write them yourself, and make sure both
 > partners can explain any line of the result cold.
@@ -30,10 +27,11 @@ For the order to build it in, with a check at each step, see `MP1_BUILD_GUIDE.md
 
 ## 1. The design, in one paragraph
 
-Every machine runs `mp1d`, a daemon holding its own `machine.i.log`. Any machine
-can run `dgrep`, which opens one connection per machine **in parallel**, sends
-the grep arguments, and each daemon runs the real system `grep` on its own local
-log and streams matching lines back. Only matches cross the network.
+Every machine runs `log-server`, a daemon holding its own `machine.i.log`. Any
+machine can run `log-query`, which opens one connection per machine **in
+parallel**, sends the grep arguments, and each daemon runs the real system
+`grep` on its own local log and streams matching lines back. Only matches cross
+the network.
 
 **Ship the query to the data, not the data to the query.** This is the decision
 the spec asks you to justify, so be ready for it at the demo:
@@ -81,9 +79,10 @@ hardening it defers is Phase D. Say "we staged it" at the demo, not "we forgot".
       you are still holding it open yourself. grep's stderr is inherited for
       now; the second pipe arrives with the error frame in Phase D
 - [ ] Count lines while streaming — never run grep twice
-- [ ] `mp1d` accept loop, thread per connection, survives a malformed request
-- [ ] `dgrep` against a single local daemon returns correct output
-- [ ] `mp1gen` deterministic, and its expected counts match a real local grep
+- [ ] `log-server` accept loop, thread per connection, survives a malformed
+      request
+- [ ] `log-query` against a single local daemon returns correct output
+- [ ] `log-gen` deterministic, and its expected counts match a real local grep
 
 ### Phase C — the fan-out
 - [ ] `QueryOne`: connect, send, drain frames, fill a `MachineResult`. It must
@@ -102,9 +101,10 @@ hardening it defers is Phase D. Say "we staged it" at the demo, not "we forgot".
 Hardening first: `UNREACHABLE` and `PARTIAL` are only trustworthy once a peer
 cannot crash you or lie to you about a length.
 
-- [ ] A `MP1 <version>\n` greeting line. Catches pointing `dgrep` at the wrong
-      port — a stale daemon, another service — instead of parsing someone
-      else's bytes as grep output. The port already moved 9425 → 4425 once
+- [ ] A `MP1 <version>\n` greeting line. Catches pointing `log-query` at the
+      wrong port — a stale daemon, another service — instead of parsing
+      someone else's bytes as grep output. The port already moved 9425 → 4425
+      once
 - [ ] Length caps on the request and on each frame, checked *before* any
       allocation. A length is a number the **peer** chose
 - [ ] A second pipe for grep's stderr and an error frame to carry the text, so

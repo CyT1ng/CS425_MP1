@@ -1,21 +1,22 @@
-// dgrep -- the distributed querier. Runs on ANY machine in the cluster.
+// log-query -- the distributed querier. Runs on ANY machine in the cluster.
 //
-//   dgrep [--config config/machines.txt] [--timeout-ms 2000] [-- ] <grep args...>
+//   log-query [--config config/machines.txt] [--timeout-ms 2000] [-- ] <grep args...>
 //
 // Everything after the client's own flags is passed through to grep untouched,
 // so all of grep's options work:
 //
-//   dgrep -c ERROR
-//   dgrep -E '(WARN|ERROR).*timeout'
-//   dgrep -i -n "connection refused"
-//   dgrep -v -E '^DEBUG'
+//   log-query -c ERROR
+//   log-query -E '(WARN|ERROR).*timeout'
+//   log-query -i -n "connection refused"
+//   log-query -v -E '^DEBUG'
 //
 // Pass-through parsing is fiddly and worth getting right: stop parsing YOUR
 // flags at the first argument you do not recognize (or at a literal "--") and
 // forward the entire rest verbatim. If you try to be clever you will eventually
 // eat a flag that belonged to grep.
 //
-// Exit code convention, mirroring grep so dgrep composes in shell pipelines:
+// Exit code convention, mirroring grep so log-query composes in shell
+// pipelines:
 //   0 = at least one machine matched
 //   1 = no matches anywhere (and no failures)
 //   2 = a grep error, or at least one machine was unreachable
@@ -31,7 +32,7 @@ namespace {
 
 void Usage() {
     std::fprintf(stderr,
-                 "usage: dgrep [--config <path>] [--timeout-ms <n>] "
+                 "usage: log-query [--config <path>] [--timeout-ms <n>] "
                  "[--counts-only] -- <grep args...>\n");
 }
 
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
     (void)argc; (void)argv;
     Usage();
     // TODO:
-    //   1. Parse dgrep flags, collect the grep pass-through args.
+    //   1. Parse log-query flags, collect the grep pass-through args.
     //   2. LoadMachines(config)
     //   3. summary = RunQuery(machines, grep_args, opts)
     //   4. Print the per-machine summary table, e.g.

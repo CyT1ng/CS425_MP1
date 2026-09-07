@@ -17,9 +17,9 @@ mkdir -p "$LOG_DIR"
 : > "$LOG_DIR/pids"
 
 for i in $(seq 1 "$N"); do
-    ./bin/mp1gen --id "$i" --seed "$SEED" --lines "$LINES" --out-dir "$LOG_DIR"
-    ./bin/mp1d --id "$i" --port $((BASE_PORT + i)) --log-dir "$LOG_DIR" \
-        > "$LOG_DIR/mp1d.$i.out" 2>&1 &
+    ./bin/log-gen --id "$i" --seed "$SEED" --lines "$LINES" --out-dir "$LOG_DIR"
+    ./bin/log-server --id "$i" --port $((BASE_PORT + i)) --log-dir "$LOG_DIR" \
+        > "$LOG_DIR/log-server.$i.out" 2>&1 &
     echo $! >> "$LOG_DIR/pids"
     echo "machine $i -> port $((BASE_PORT + i)) pid $!"
 done

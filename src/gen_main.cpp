@@ -1,6 +1,6 @@
-// mp1gen -- generates machine.<id>.log with known, reproducible contents.
+// log-gen -- generates machine.<id>.log with known, reproducible contents.
 //
-//   mp1gen --id <n> --seed <s> [--lines <n> | --bytes <n>] [--out-dir .]
+//   log-gen --id <n> --seed <s> [--lines <n> | --bytes <n>] [--out-dir .]
 //
 // Two jobs:
 //   1. Feed the distributed unit tests logs whose exact match counts are known
@@ -18,7 +18,7 @@
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     std::fprintf(stderr,
-                 "usage: mp1gen --id <n> --seed <s> "
+                 "usage: log-gen --id <n> --seed <s> "
                  "[--lines <n> | --bytes <n>] [--out-dir <dir>]\n");
     // TODO: parse args, build a LogSpec (patterns at the rare / somewhat /
     // frequent frequencies from log_gen.hpp), call GenerateLog, and print the
