@@ -64,36 +64,36 @@ code is: the wire format is **text** (`include/mp1/protocol.hpp`), and the
 hardening it defers is Phase D. Say "we staged it" at the demo, not "we forgot".
 
 - [x] `LoadMachines`, `LogFileName`
-- [ ] `Conn::ReadLine` / `ReadExactly` / `WriteAll`. The internal buffer is the
+- [x] `Conn::ReadLine` / `ReadExactly` / `WriteAll`. The internal buffer is the
       whole trick: one `read()` can stop mid-line or return two lines at once,
       so leftover bytes have to survive to the next call
-- [ ] `Listen`, `Accept`, `Connect`, `IgnoreSigpipe`. `Connect` needs
+- [x] `Listen`, `Accept`, `Connect`, `IgnoreSigpipe`. `Connect` needs
       non-blocking + `poll(POLLOUT)` + `SO_ERROR` — Linux ignores socket
       timeouts on `connect()`, so `SO_RCVTIMEO` will not save you here
-- [ ] `SendRequest` / `RecvRequest`, `SendData` / `SendEnd` / `RecvFrame`
-- [ ] `make test` green for the `Conn_*` and `Protocol_*` tests
+- [x] `SendRequest` / `RecvRequest`, `SendData` / `SendEnd` / `RecvFrame`
+- [x] `make test` green for the `Conn_*` and `Protocol_*` tests
 
 ### Phase B — one machine end to end
-- [ ] `RunGrep`: `pipe` + `fork` + `execvp`, one pipe for stdout. Close the
+- [x] `RunGrep`: `pipe` + `fork` + `execvp`, one pipe for stdout. Close the
       write end in the parent **first**, or the pipe never reports EOF because
       you are still holding it open yourself. grep's stderr is inherited for
       now; the second pipe arrives with the error frame in Phase D
-- [ ] Count lines while streaming — never run grep twice
-- [ ] `log-server` accept loop, thread per connection, survives a malformed
+- [x] Count lines while streaming — never run grep twice
+- [x] `log-server` accept loop, thread per connection, survives a malformed
       request
-- [ ] `log-query` against a single local daemon returns correct output
-- [ ] `log-gen` deterministic, and its expected counts match a real local grep
+- [x] `log-query` against a single local daemon returns correct output
+- [x] `log-gen` deterministic, and its expected counts match a real local grep
 
 ### Phase C — the fan-out
-- [ ] `QueryOne`: connect, send, drain frames, fill a `MachineResult`. It must
+- [x] `QueryOne`: connect, send, drain frames, fill a `MachineResult`. It must
       never throw — a dead machine is a normal return value, not an error
-- [ ] `RunQuery`: one `std::async(std::launch::async, ...)` per machine, collect
+- [x] `RunQuery`: one `std::async(std::launch::async, ...)` per machine, collect
       every future. **`launch::async` is not optional** — without it the task
       may be deferred to `get()`, which silently makes the fan-out sequential
       and quietly ruins the latency numbers
-- [ ] `wall_latency` = max, not sum
-- [ ] `PrintSummary`: per-machine table with filename + line count
-- [ ] `./scripts/start_cluster.sh 6`, then query it with
+- [x] `wall_latency` = max, not sum
+- [x] `PrintSummary`: per-machine table with filename + line count
+- [x] `./scripts/start_cluster.sh 6`, then query it with
       `--config config/local.txt` from "any" machine
 
 ### Phase D — protocol hardening, then fault tolerance
@@ -104,26 +104,30 @@ cannot crash you or lie to you about a length.
 - [ ] A `MP1 <version>\n` greeting line. Catches pointing `log-query` at the
       wrong port — a stale daemon, another service — instead of parsing
       someone else's bytes as grep output. The port already moved 9425 → 4425
-      once
-- [ ] Length caps on the request and on each frame, checked *before* any
+      once. *Open on purpose:* `RecvFrame` already rejects a peer that is not
+      a log-server cleanly (`Protocol_RejectsGarbageHeader`), so a greeting
+      buys a better message, not safety
+- [x] Length caps on the request and on each frame, checked *before* any
       allocation. A length is a number the **peer** chose
 - [ ] A second pipe for grep's stderr and an error frame to carry the text, so
       `kGrepError` reports *why*. Two pipes means `poll()`ing both: drain only
-      one while grep fills the other and it deadlocks
-- [ ] Dead machine → `UNREACHABLE`, reported, not silently dropped
-- [ ] Dead machine does **not** delay live ones (test against a blackhole IP,
+      one while grep fills the other and it deadlocks. *Open on purpose:*
+      grep's stderr is inherited, so the text is already in the daemon's own
+      output and the querier still learns the exit code
+- [x] Dead machine → `UNREACHABLE`, reported, not silently dropped
+- [x] Dead machine does **not** delay live ones (test against a blackhole IP,
       not localhost — localhost gives an instant refusal and proves nothing)
-- [ ] Killed mid-stream → `PARTIAL`, caught by comparing the END line's count
+- [x] Killed mid-stream → `PARTIAL`, caught by comparing the END line's count
       against the lines actually received
-- [ ] `SIGPIPE` ignored, or a disconnecting client kills your daemon
+- [x] `SIGPIPE` ignored, or a disconnecting client kills your daemon
 
 ### Phase E — the test suite
-- [ ] `Cluster` harness: spawn N daemons, poll for readiness (**never** a fixed
+- [x] `Cluster` harness: spawn N daemons, poll for readiness (**never** a fixed
       `sleep`), kill one, clean up even when a test fails
-- [ ] Every named test in `tests/test_distributed.cpp` implemented
-- [ ] Frequency axis: rare / somewhat frequent / frequent
-- [ ] Distribution axis: one log / some logs / all logs / no log
-- [ ] Whole suite passes 10 runs in a row without a flake
+- [x] Every named test in `tests/test_distributed.cpp` implemented
+- [x] Frequency axis: rare / somewhat frequent / frequent
+- [x] Distribution axis: one log / some logs / all logs / no log
+- [x] Whole suite passes 10 runs in a row without a flake
 
 ### Phase F — the cluster
 - [ ] `deploy.sh` works against all 10 VMs from scratch

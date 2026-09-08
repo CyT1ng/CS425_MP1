@@ -67,13 +67,19 @@ host for development.
 Everything after `--` is passed to `grep` untouched, so every grep option works,
 including arbitrary `-E` regexes. Output looks like:
 
-    machine.1.log:2026-09-13T04:12:01 ERROR db connection refused
+    machine.1.log:2026-09-13T04:12:01.375Z ERROR [db] connection refused ...
     ...
-    machine.1.log    1423 lines
-    machine.2.log       0 lines
-    machine.3.log      -- UNREACHABLE
-    ------------------------------------
-    total            1423 lines from 2/3 machines   (412 ms)
+    machine.1.log        1423 lines   (147 ms)
+    machine.2.log           0 lines   (139 ms)
+    machine.3.log          -- UNREACHABLE   (2001 ms)
+    ----------------------------------------------------
+    total                1423 lines from 2/3 machines   (412 ms)
+    SUMMARY latency_ms=412 total_lines=1423 machines_ok=2 machines_failed=1
+
+The matching lines and the table go to stdout; *why* a machine failed goes to
+stderr, so a script can read one while a human reads the other. The `SUMMARY`
+line is what `scripts/measure.sh` parses — it never has to scrape the table.
+`--counts-only` suppresses the matching lines and prints the table alone.
 
 Exit status mirrors grep: `0` matched, `1` no matches anywhere, `2` an error or
 an unreachable machine.

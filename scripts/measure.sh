@@ -49,10 +49,10 @@ for class in rare infrequent frequent; do
     ./bin/log-query --config "$CONFIG" -- -c "$pattern" > /dev/null 2>&1 || true
 
     for t in $(seq 1 "$TRIALS"); do
-        # TODO: have log-query emit a machine-readable summary line, e.g.
-        #   SUMMARY latency_ms=412 total_lines=1423 machines_ok=4
-        # and parse it here. Printing a parseable line beats scraping the pretty
-        # table, and it keeps the human output free to stay readable.
+        # log-query prints one machine-readable line for exactly this:
+        #   SUMMARY latency_ms=412 total_lines=1423 machines_ok=4 machines_failed=0
+        # Parsing that beats scraping the pretty table, and it leaves the human
+        # output free to stay readable.
         line=$(./bin/log-query --config "$CONFIG" --counts-only -- "$pattern" \
                | grep '^SUMMARY' || true)
         ms=$(sed -n 's/.*latency_ms=\([0-9]*\).*/\1/p'   <<< "$line")

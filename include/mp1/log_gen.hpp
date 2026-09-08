@@ -21,7 +21,10 @@ namespace mp1 {
 struct PatternSpec {
     std::string token;             // literal token injected into chosen lines
     std::vector<int> machine_ids;  // which machines get it: one / some / all
-    double frequency = 0.0;        // fraction of that machine's lines, 0..1
+    // Fraction of that machine's lines, 0..1. A non-zero frequency that rounds
+    // down to no lines at all still plants one: "rare" has to mean rare, not
+    // absent, or the rare-pattern test asserts 0 == 0 and proves nothing.
+    double frequency = 0.0;
 };
 
 struct LogSpec {
@@ -37,25 +40,27 @@ struct ExpectedCounts {
     // token -> (machine id -> expected number of MATCHING LINES on that machine)
     std::map<std::string, std::map<int, uint64_t>> by_token;
 
-    // TODO: sum across machines for `token`. Returns 0 for an unknown token.
+    // Sums across machines for `token`. Returns 0 for an unknown token.
     uint64_t TotalFor(const std::string& token) const;
 };
 
-// TODO: write the log file for `spec` and fill in `expected`.
+// Writes the log file for `spec` and records its ground truth in `expected`,
+// which is ADDED to rather than cleared -- so all ten machines can be generated
+// into one ExpectedCounts and asserted against cluster-wide totals.
 //
-// Requirements that make the tests trustworthy:
-//   - Deterministic: seed a std::mt19937_64 with spec.seed. Never use rand(),
-//     never touch wall-clock time, or your logs differ between machines and the
-//     expected counts become fiction.
-//   - Realistic-looking lines: timestamp, level, component, message. It should
-//     be plausible that this came from a real service.
-//   - The filler text must NEVER accidentally contain a planted token, or your
-//     expected counts will be short. Draw filler from a vocabulary that is
-//     disjoint from the token set, and assert that invariant.
-//   - Place planted tokens at exact computed positions rather than
-//     probabilistically, so the expected count is exact and not statistical.
-//   - Count LINES containing a token, not occurrences: two hits on one line is
-//     one line to grep.
+// What makes the resulting counts trustworthy:
+//   - Deterministic. A std::mt19937_64 seeded from spec.seed and the machine
+//     id; never rand(), never the wall clock. Otherwise two runs disagree and
+//     every expected count is fiction.
+//   - Realistic lines: timestamp, level, component, message, so the demo looks
+//     like it is searching a service's log, because it is.
+//   - Planted tokens go at computed positions, not probabilistically, so an
+//     expected count is an exact number rather than a distribution.
+//   - LINES containing a token are counted, not occurrences: two hits on one
+//     line is one line to grep.
+//   - The counts are then taken from the finished lines themselves and checked
+//     against the plan, so a filler word that ever collided with a token fails
+//     here loudly instead of quietly making every expectation too low.
 bool GenerateLog(const LogSpec& spec, const std::string& out_path,
                  ExpectedCounts& expected, std::string* err);
 
@@ -69,5 +74,27 @@ bool GenerateLog(const LogSpec& spec, const std::string& out_path,
 inline constexpr double kRareFrequency      = 0.00001;
 inline constexpr double kSomewhatFrequency  = 0.001;
 inline constexpr double kFrequentFrequency  = 0.1;
+
+// The tokens log-gen plants by default -- the ones the test suite and
+// scripts/measure.sh query by name. They live here so the generator, the tests
+// and the measurement script cannot drift apart: a token typo in one of three
+// copies would look exactly like a correctness bug in the querier.
+//
+// Every token is upper case with an underscore and a hex tail, and the filler
+// vocabulary is lower-case words, so a token cannot turn up in filler text by
+// accident. GenerateLog verifies that rather than trusting it.
+inline constexpr char kRareToken[]     = "RARE_TOKEN_7f3a";
+inline constexpr char kSomewhatToken[] = "SOMEWHAT_TOKEN_b21c";
+inline constexpr char kFrequentToken[] = "FREQUENT_TOKEN_e50d";
+inline constexpr char kOneLogToken[]   = "ONELOG_TOKEN_d17c";    // machine 3 only
+inline constexpr char kSomeLogsToken[] = "SOMELOGS_TOKEN_9ab2";  // odd machines
+inline constexpr char kAbsentToken[]   = "ABSENT_TOKEN_0f00";    // never planted
+
+// The pattern set log-gen plants by default: one per frequency class, plus one
+// that lands on a single machine and one that lands on a subset. A freshly
+// deployed cluster can then demonstrate every axis the spec asks about -- rare
+// / somewhat frequent / frequent, and one / some / all logs -- with no second
+// generation step and nothing to remember at the demo.
+std::vector<PatternSpec> DefaultPatterns();
 
 }  // namespace mp1
