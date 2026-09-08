@@ -1,17 +1,13 @@
-bin/
-build/
-*.o
+# built binaries
+server
+query
 
-# Generated logs -- never commit these. A 60 MB log file in git history is
-# permanent and will make every clone on the VMs painful.
-*.log
+# the pretend local cluster and its logs
+cluster/
+local.txt
+
+# generated logs -- never commit these
 machine.*.log
-logs/
-
-# Measurement output: keep the summarized CSV under report/data, not the raw runs
-report/data/raw/
-*.png
-!report/*.png
+*.log
 
 .DS_Store
-compile_commands.json

@@ -1,151 +1,147 @@
 # CS425 MP1 — Distributed Log Querier
 
-Run a `grep` across log files on every machine in the cluster, from any machine
-in the cluster, and get back per-file line counts with the filename each match
-came from — tolerating machines that have failed.
+Run a `grep` across log files on every machine in a cluster, from any machine in
+the cluster, and get back the matching lines labelled with which machine each
+one came from — while machines that are down are reported rather than silently
+skipped.
 
-**Group:** *(names + NetIDs)*
+**Group 91** — *(names + NetIDs)*
 
 ---
+
+## The whole system is two files
+
+    server.cpp   one machine's daemon: holds one log, answers questions about it
+    query.cpp    the querier: asks every machine at once, collects the answers
+
+No libraries, no headers of our own. Both are meant to be read top to bottom.
 
 ## Build
 
     make
 
-Requires a C++17 compiler (`g++` or `clang++`) and GNU make. No external
-dependencies — the CS VM Cluster toolchain is enough as-is.
+Needs a C++17 compiler and GNU make — nothing else. Produces `server` and
+`query`.
 
-Produces four binaries in `bin/`:
+## Try it on this computer first
 
-| Binary | Role |
+    ./run_local.sh 4 10000        # 4 "machines" as separate processes
+    ./query local.txt COMMON_TOKEN
+
+Each machine is its own process with its own log file and port, so as far as the
+code is concerned that is a real distributed system — real sockets, real
+fan-out, real failures — with no VMs needed.
+
+The log generator plants tokens on a fixed schedule, so **every answer is
+predictable in advance**:
+
+| Query | Matches per machine |
 |---|---|
-| `log-server` | the log daemon; one per machine |
-| `log-query` | the distributed querier; run from any machine |
-| `log-gen` | deterministic log generator |
-| `run-tests` | the full unit test suite |
+| `COMMON_TOKEN` | lines / 10 |
+| `RARE_TOKEN` | lines / 1000 |
+| `-c ERROR` | lines / 4 |
+| `ONLY_ON_THREE` | 0, except on machine 3 |
 
-## Run the unit tests
+With 4 machines × 10,000 lines, `COMMON_TOKEN` must return exactly 4,000 lines.
 
-    make test          # or: ./scripts/run_tests.sh
+Kill one and ask again — the others still answer, and the dead one is named:
 
-Runs the local tests and the distributed tests. The distributed tests bring up
-their own throwaway cluster of `log-server` processes on `127.0.0.1`, generate
-logs, query them, and inject failures — no manual setup, and no VMs required.
-Exit status is nonzero if anything fails.
+    kill -9 $(sed -n 2p cluster/pids)
+    ./query local.txt RARE_TOKEN
 
-## Run MP1
+## Run it on the VM cluster
 
-**1. Configure the cluster.** `config/machines.txt` is the VM cluster — one
-`id host port` line per machine; regenerate it with
-`./scripts/gen_machines.sh <gid> 10 <port> > config/machines.txt`. Ship the same
-file to every machine so any of them can query. `config/local.txt` is the
-several-processes-on-one-host config for development; pass it with
-`--config`. Keep them in separate files — duplicate ids in one file are
-rejected at startup.
+`machines.txt` lists the ten VMs. From your laptop, or from any one VM:
 
-**2. Start a daemon on every machine.**
+    MP1_REPO=https://github.com/CyT1ng/CS425_MP1.git ./deploy.sh
 
-    ./bin/log-gen --id <i> --seed 42 --lines 300000   # generate machine.<i>.log
-    ./bin/log-server --id <i> --port 4425             # serve it
+That runs **once**, from **one** machine, and ssh's out to all ten — clone,
+build, generate a log, start the daemon, in parallel. Then query from any of
+them:
 
-On the VM cluster, `./scripts/deploy.sh` does the clone, build, log generation,
-and daemon start across every machine in the config at once:
+    ssh fa26-cs425-9103.cs.illinois.edu
+    cd mp1 && ./query machines.txt -c ERROR
 
-    MP1_REPO=git@github.com:<org>/<repo>.git ./scripts/deploy.sh
+The VMs have no persistent storage, so after a reboot just run `./deploy.sh`
+again. That is the whole recovery procedure.
 
-Locally, `./scripts/start_cluster.sh 6` brings up a 6-process cluster on one
-host for development.
+## Queries
 
-**3. Query from any machine.**
+Everything after the machine list is passed straight to `grep`, so every grep
+option works:
 
-    ./bin/log-query -- ERROR
-    ./bin/log-query -- -c ERROR
-    ./bin/log-query -- -E '(WARN|ERROR).*timeout'
-    ./bin/log-query -- -i -n "connection refused"
-    ./bin/log-query -- -v -E '^DEBUG'
+    ./query machines.txt ERROR
+    ./query machines.txt -c ERROR
+    ./query machines.txt -i "connection refused"
+    ./query machines.txt -E "request (100|200) handled"
+    ./query machines.txt -v -E "^2026"
 
-Everything after `--` is passed to `grep` untouched, so every grep option works,
-including arbitrary `-E` regexes. Output looks like:
+Output: the matching lines, each prefixed with the log it came from, then a
+per-machine summary.
 
-    machine.1.log:2026-09-13T04:12:01.375Z ERROR [db] connection refused ...
-    ...
-    machine.1.log        1423 lines   (147 ms)
-    machine.2.log           0 lines   (139 ms)
-    machine.3.log          -- UNREACHABLE   (2001 ms)
-    ----------------------------------------------------
-    total                1423 lines from 2/3 machines   (412 ms)
-    SUMMARY latency_ms=412 total_lines=1423 machines_ok=2 machines_failed=1
+    machine.1.log      1000 lines   (8 ms)
+    machine.2.log        -- unreachable   (0 ms)
+    machine.3.log      1000 lines   (8 ms)
+    ---------------------------------------------
+    total              2000 lines from 2/3 machines   (8 ms)
 
-The matching lines and the table go to stdout; *why* a machine failed goes to
-stderr, so a script can read one while a human reads the other. The `SUMMARY`
-line is what `scripts/measure.sh` parses — it never has to scrape the table.
-`--counts-only` suppresses the matching lines and prints the table alone.
+Exit status follows grep: `0` matched, `1` matched nothing anywhere, `2` a
+machine failed.
 
-Exit status mirrors grep: `0` matched, `1` no matches anywhere, `2` an error or
-an unreachable machine.
+---
 
-## Reproducing the report numbers
+## How it works
 
-    ./scripts/measure.sh config/machines.txt 7
-    python3 report/plot_latency.py report/data/latency.csv
+**Ship the query to the data.** Each machine greps its own log locally and sends
+back only the matching lines. Copying ten 60 MB logs to one machine to search
+them there would move 600 MB to find, sometimes, three lines — and would do the
+searching on one CPU instead of ten.
 
-4 machines × 60 MB logs, 7 trials per query class, mean and standard deviation
-plotted together with SD as error bars.
+**Ask every machine at the same time.** `query.cpp` starts one `std::async` task
+per machine before waiting on any of them, so a query costs the time of the
+*slowest* machine rather than the sum of all of them. It is also what keeps one
+dead machine from holding up the other nine.
 
-## Layout
+**The message format says when a machine is finished.**
 
-    include/mp1/   headers — the design lives in these comments
-    src/           implementation + the three binaries' main()
-    tests/         test framework, cluster harness, local + distributed tests
-    scripts/       cluster startup, VM deploy, test runner, measurements
-    config/        machines.txt (VM cluster), local.txt (one-host dev)
-    report/        plotting script and measurement data
+    client -> server    one line per grep argument, then an empty line
+    server -> client    D <n>\n + n bytes     (0 or more times)
+                        E <grep's exit code>  (exactly once)
 
-## Design summary
+The `E` line is the part that looks unnecessary and is not: without it, "grep
+found nothing" and "this machine died" are identical on the network — both are a
+closed connection with nothing in it.
 
-`log-query` ships the **query to the data**, never the data to the querier: each
-machine greps its own log locally and returns only matching lines. At the demo's
-scale, fetching logs would move 60 MB per machine across the network before any
-matching starts, while local grep reads the same 60 MB at memory bandwidth on
-all machines *concurrently*. This is a scatter/gather fan-out — no partitioning,
-no shuffle, no reduce phase, and explicitly not MapReduce.
+**A failed machine is a normal outcome.** `query_one()` never fails upward; a
+dead machine comes back as a result with `answered = false` and gets a word in
+the summary table where its count would be. Printing `0`, or leaving the row
+out, would look exactly like a machine that was fine and had no matches.
 
-The querier launches one `std::async` task per machine, each with its own
-connect deadline, so a failed machine costs one timeout instead of stalling the
-query. Each task returns a finished result by value, which means no shared state
-and no locks. Every machine is reported explicitly — a line count, or
-`UNREACHABLE`/`PARTIAL` — so "no matches" is never confused with "machine down".
+**Connecting has a timeout.** A machine that is switched off never answers at
+all, and an ordinary `connect()` waits minutes. `connect_with_timeout()` uses a
+non-blocking socket plus `poll()`, so a dead machine costs two seconds — once,
+for all the dead machines together, because they wait concurrently.
 
-### Wire protocol
+**The server never trusts the client with a filename.** It builds
+`machine.<its own id>.log` itself, so machine 3 always searches machine 3's log.
 
-Deliberately text, not binary. Headers are ASCII lines; payloads carry their
-length so the reader always knows where they end:
+**grep is the real grep**, started with `fork` + `execvp` and an argument array —
+never a shell, which would re-interpret the pattern and would hand a stranger on
+the network a shell on the VM.
 
-    client -> server    ARGS <argc>\n  then argc x  <len>\n<bytes>
-    server -> client    D <len>\n<bytes>   ...zero or more
-                        E <exit_code> <line_count>\n   ends the stream
+---
 
-That costs a few bytes against a binary encoding and buys no byte-order code, no
-bit shifting, and the ability to point `nc` at a daemon and read the exchange.
+## Files
 
-The `E` line is what makes failure detectable. Without it, "grep matched
-nothing", "grep rejected the regex", and "the machine died" are the same empty
-stream. `exit_code` separates the first two; `line_count`, checked against the
-lines actually received, catches a peer that died halfway.
+    server.cpp     the daemon
+    query.cpp      the querier
+    gen_logs.sh    writes a log with predictable contents (awk, no randomness)
+    run_local.sh   starts a pretend cluster on this computer
+    deploy.sh      builds and starts the daemon on all ten VMs
+    machines.txt   the ten VMs
+    Makefile
 
-The request carries no filename — the server appends its own. So each machine
-necessarily greps `machine.<i>.log`, and a querier cannot ask a peer for an
-arbitrary file, because the protocol has no field to put one in.
+An earlier, much larger version of this project — layered into modules, with a
+43-case unit test suite and latency measurement tooling — is preserved in git:
 
-### Staged on purpose
-
-Some hardening is deliberately deferred and tracked in `MP1_PLAN.md` Phase D: a
-version greeting, length caps on incoming frames, and a second pipe carrying
-grep's stderr back to the querier. Each is listed with its reason at the bottom
-of `include/mp1/protocol.hpp`.
-
-`ARCHITECTURE.md` explains every function in plain language and walks through
-a query end to end. For the code itself, see `include/mp1/protocol.hpp` for the
-wire format, `include/mp1/net.hpp` for the
-`Conn` socket wrapper, and `include/mp1/client.hpp` for the fan-out and
-fault-tolerance contract.
+    git checkout full-version

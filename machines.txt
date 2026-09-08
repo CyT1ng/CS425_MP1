@@ -1,0 +1,12 @@
+# The 10 VMs. One "<id> <host> <port>" line each.
+# Blank lines and lines starting with # are ignored.
+1  fa26-cs425-9101.cs.illinois.edu 4425
+2  fa26-cs425-9102.cs.illinois.edu 4425
+3  fa26-cs425-9103.cs.illinois.edu 4425
+4  fa26-cs425-9104.cs.illinois.edu 4425
+5  fa26-cs425-9105.cs.illinois.edu 4425
+6  fa26-cs425-9106.cs.illinois.edu 4425
+7  fa26-cs425-9107.cs.illinois.edu 4425
+8  fa26-cs425-9108.cs.illinois.edu 4425
+9  fa26-cs425-9109.cs.illinois.edu 4425
+10 fa26-cs425-9110.cs.illinois.edu 4425
