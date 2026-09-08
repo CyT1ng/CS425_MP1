@@ -5,6 +5,8 @@
 #
 # Environment:
 #   MP1_REPO   the git remote the VMs clone from            (required)
+#   MP1_USER   ssh username, if your netid differs from your
+#              local one -- it almost certainly does           (default: unset)
 #   MP1_DIR    where to put it on each VM, relative to that
 #              machine's home unless it starts with '/'     (default: mp1)
 #   SEED       log generator seed                           (default: 42)
@@ -28,6 +30,7 @@ SEED=${SEED:-42}
 LINES=${LINES:-300000}
 BYTES=${BYTES:-0}
 BRANCH=${MP1_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}
+SSH_USER=${MP1_USER:-}
 
 # --- deploy what you think you are deploying -------------------------------
 # Every VM clones from the REMOTE, so anything still sitting on this laptop is
@@ -66,7 +69,8 @@ labels=()
 logs=()
 while read -r id host port; do
     echo "  starting machine $id ($host:$port)"
-    ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$host" \
+    ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+        "${SSH_USER:+$SSH_USER@}$host" \
         bash -s -- "$REPO" "$BRANCH" "$DIR" "$id" "$port" "$SEED" "$LINES" "$BYTES" \
         > "$OUT/machine-$id.log" 2>&1 <<'REMOTE' &
 set -euo pipefail
